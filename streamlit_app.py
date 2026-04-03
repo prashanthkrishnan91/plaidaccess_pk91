@@ -7,7 +7,7 @@ from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
 from plaid.configuration import Configuration
 from plaid.api_client import ApiClient
-from streamlit_plaid import streamlit_plaid
+from streamlit_plaid_link import streamlit_plaid_link
 
 st.set_page_config(page_title="Plaid Token Generator", page_icon="🏦")
 
