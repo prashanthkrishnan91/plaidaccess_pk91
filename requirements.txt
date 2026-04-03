@@ -1,3 +1,2 @@
 streamlit
 plaid-python
-streamlit-plaid-link
