@@ -67,26 +67,26 @@ try:
 """
 
 # Render the button
-components.html(html_code, height=60)
+    components.html(html_code, height=60)
 
 # Check if the token is in the URL parameters
-query_params = st.query_params
-if "public_token" in query_params:
-    public_token = query_params["public_token"]
-    
-    st.success("Public Token received! Exchanging...")
-    
-    try:
-        exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
-        exchange_response = client.item_public_token_exchange(exchange_request)
+    query_params = st.query_params
+    if "public_token" in query_params:
+        public_token = query_params["public_token"]
         
-        st.subheader("Your Access Token")
-        st.code(exchange_response['access_token'])
-        st.info("Copy this to your other Robinhood app's secrets.")
+        st.success("Public Token received! Exchanging...")
         
-        # Clear the param so it doesn't re-run infinitely
-        if st.button("Clear Token from Screen"):
-            st.query_params.clear()
+        try:
+            exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
+            exchange_response = client.item_public_token_exchange(exchange_request)
+            
+            st.subheader("Your Access Token")
+            st.code(exchange_response['access_token'])
+            st.info("Copy this to your other Robinhood app's secrets.")
+            
+            # Clear the param so it doesn't re-run infinitely
+            if st.button("Clear Token from Screen"):
+                st.query_params.clear()
             
     except Exception as e:
         st.error(f"Exchange Error: {e}")
