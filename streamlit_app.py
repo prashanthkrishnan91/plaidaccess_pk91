@@ -46,38 +46,47 @@ def get_link_token():
 try:
     link_token = get_link_token()
 
-    # 3. Custom Javascript Component for Plaid Link
-    # This replaces the need for "streamlit-plaid-link"
-    html_code = f"""
-    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
-    <button id="link-button" style="background-color: #00ADEE; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px;">
-        Connect Robinhood
-    </button>
-    <script>
-    const handler = Plaid.create({{
-      token: '{link_token}',
-      onSuccess: (public_token, metadata) => {{
-        window.parent.postMessage({{
-            type: 'streamlit:setComponentValue',
-            value: public_token
-        }}, '*');
-      }},
-    }});
-    document.getElementById('link-button').onclick = () => handler.open();
-    </script>
-    """
-    
-    # Render the button and capture the public_token when returned
-    public_token = components.html(html_code, height=60)
+   # 3. Custom Javascript Component for Plaid Link
+html_code = f"""
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+<button id="link-button" style="background-color: #00ADEE; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%;">
+    Connect Robinhood
+</button>
+<script>
+const handler = Plaid.create({{
+  token: '{link_token}',
+  onSuccess: (public_token, metadata) => {{
+    // Send the token back to Streamlit via the URL
+    const url = new URL(window.location.href);
+    url.searchParams.set('public_token', public_token);
+    window.parent.location.href = url.href;
+  }},
+}});
+document.getElementById('link-button').onclick = () => handler.open();
+</script>
+"""
 
-    if public_token:
-        st.success("Public Token received! Exchanging...")
+# Render the button
+components.html(html_code, height=60)
+
+# Check if the token is in the URL parameters
+query_params = st.query_params
+if "public_token" in query_params:
+    public_token = query_params["public_token"]
+    
+    st.success("Public Token received! Exchanging...")
+    
+    try:
         exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
         exchange_response = client.item_public_token_exchange(exchange_request)
         
         st.subheader("Your Access Token")
         st.code(exchange_response['access_token'])
         st.info("Copy this to your other Robinhood app's secrets.")
-
-except Exception as e:
-    st.error(f"Setup Error: {e}")
+        
+        # Clear the param so it doesn't re-run infinitely
+        if st.button("Clear Token from Screen"):
+            st.query_params.clear()
+            
+    except Exception as e:
+        st.error(f"Exchange Error: {e}")
