@@ -43,10 +43,11 @@ def get_link_token():
     response = client.link_token_create(request)
     return response['link_token']
 
+# --- MAIN LOGIC ---
 try:
     link_token = get_link_token()
 
-   # 3. Custom Javascript Component for Plaid Link
+    # 3. Custom Javascript Component for Plaid Link
     html_code = f"""
     <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
     <button id="link-button" style="background-color: #00ADEE; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%;">
@@ -56,7 +57,6 @@ try:
     const handler = Plaid.create({{
       token: '{link_token}',
       onSuccess: (public_token, metadata) => {{
-        // Send the token back to Streamlit via the URL
         const url = new URL(window.location.href);
         url.searchParams.set('public_token', public_token);
         window.parent.location.href = url.href;
@@ -65,15 +65,12 @@ try:
     document.getElementById('link-button').onclick = () => handler.open();
     </script>
     """
-
-# Render the button
+    
     components.html(html_code, height=60)
 
-# Check if the token is in the URL parameters
-    query_params = st.query_params
-    if "public_token" in query_params:
-        public_token = query_params["public_token"]
-        
+    # 4. Check for public_token in URL
+    if "public_token" in st.query_params:
+        public_token = st.query_params["public_token"]
         st.success("Public Token received! Exchanging...")
         
         try:
@@ -84,9 +81,14 @@ try:
             st.code(exchange_response['access_token'])
             st.info("Copy this to your other Robinhood app's secrets.")
             
-            # Clear the param so it doesn't re-run infinitely
             if st.button("Clear Token from Screen"):
                 st.query_params.clear()
-            
-        except Exception as e:
-            st.error(f"Exchange Error: {e}")
+                st.rerun()
+                
+        except Exception as exchange_error:
+            st.error(f"Exchange Error: {exchange_error}")
+
+except Exception as setup_error:
+    st.error(f"Setup Error: {setup_error}")
+    if "INVALID_PRODUCT" in str(setup_error):
+        st.warning("Plaid is still reviewing your 'Investments' product request. You cannot use Robinhood in Production until they approve it.")
