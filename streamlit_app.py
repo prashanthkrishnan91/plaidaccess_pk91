@@ -64,7 +64,7 @@ try:
     }});
     document.getElementById('link-button').onclick = () => handler.open();
     </script>
-"""
+    """
 
 # Render the button
     components.html(html_code, height=60)
@@ -88,5 +88,5 @@ try:
             if st.button("Clear Token from Screen"):
                 st.query_params.clear()
             
-except Exception as e:
-    st.error(f"Exchange Error: {e}")
+        except Exception as e:
+            st.error(f"Exchange Error: {e}")
