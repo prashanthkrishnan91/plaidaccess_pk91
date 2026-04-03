@@ -66,7 +66,7 @@ try:
     </script>
     """
     
-    components.html(html_code, height=60)
+    components.html(html_code, height=70, scrolling=False)
 
     # 4. Check for public_token in URL
     if "public_token" in st.query_params:
