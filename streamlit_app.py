@@ -88,5 +88,5 @@ try:
             if st.button("Clear Token from Screen"):
                 st.query_params.clear()
             
-    except Exception as e:
-        st.error(f"Exchange Error: {e}")
+except Exception as e:
+    st.error(f"Exchange Error: {e}")
