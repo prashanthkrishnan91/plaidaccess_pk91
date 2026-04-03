@@ -12,9 +12,16 @@ from plaid.api_client import ApiClient
 st.set_page_config(page_title="Plaid Token Generator", page_icon="🏦")
 st.title("🏦 Plaid Access Token Generator")
 
-# 1. Setup Plaid Client
+# 1. Setup Plaid Client Configuration
+if st.secrets["PLAID_ENV"] == "production":
+    host = "https://production.plaid.com"
+elif st.secrets["PLAID_ENV"] == "development":
+    host = "https://development.plaid.com"
+else:
+    host = "https://sandbox.plaid.com"
+
 configuration = Configuration(
-    host=ApiClient.Production if st.secrets["PLAID_ENV"] == "production" else ApiClient.Sandbox,
+    host=host,
     api_key={
         'clientId': st.secrets["PLAID_CLIENT_ID"],
         'secret': st.secrets["PLAID_SECRET"],
