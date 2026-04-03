@@ -47,23 +47,23 @@ try:
     link_token = get_link_token()
 
    # 3. Custom Javascript Component for Plaid Link
-html_code = f"""
-<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
-<button id="link-button" style="background-color: #00ADEE; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%;">
-    Connect Robinhood
-</button>
-<script>
-const handler = Plaid.create({{
-  token: '{link_token}',
-  onSuccess: (public_token, metadata) => {{
-    // Send the token back to Streamlit via the URL
-    const url = new URL(window.location.href);
-    url.searchParams.set('public_token', public_token);
-    window.parent.location.href = url.href;
-  }},
-}});
-document.getElementById('link-button').onclick = () => handler.open();
-</script>
+    html_code = f"""
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+    <button id="link-button" style="background-color: #00ADEE; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%;">
+        Connect Robinhood
+    </button>
+    <script>
+    const handler = Plaid.create({{
+      token: '{link_token}',
+      onSuccess: (public_token, metadata) => {{
+        // Send the token back to Streamlit via the URL
+        const url = new URL(window.location.href);
+        url.searchParams.set('public_token', public_token);
+        window.parent.location.href = url.href;
+      }},
+    }});
+    document.getElementById('link-button').onclick = () => handler.open();
+    </script>
 """
 
 # Render the button
