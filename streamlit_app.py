@@ -66,4 +66,46 @@ if link_token:
                     onSuccess: (public_token, metadata) => {{
                         // Send the token back to Streamlit using postMessage
                         window.parent.postMessage({{
-                            type: 'streamlit:set
+                            type: 'streamlit:setComponentValue',
+                            value: public_token
+                        }}, '*');
+
+                        // Fallback: Try to force a URL redirect if postMessage fails
+                        const url = new URL(window.parent.location.href);
+                        url.searchParams.set('public_token', public_token);
+                        window.parent.location.href = url.href;
+                    }},
+                    onExit: (err, metadata) => {{
+                        if (err != null) console.error(err);
+                    }}
+                }});
+                document.getElementById('link-button').onclick = function() {{
+                    handler.open();
+                }};
+            </script>
+        </body>
+    </html>
+    """
+    # Render the component and capture the returned value
+    res = components.html(html_code, height=100)
+
+# 4. Check for public_token in URL parameters or Component Return
+# We check st.query_params because the JS fallback writes to the URL
+if "public_token" in st.query_params:
+    public_token = st.query_params["public_token"]
+    st.success("Public Token received! Exchanging...")
+    
+    try:
+        exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
+        exchange_response = client.item_public_token_exchange(exchange_request)
+        
+        st.subheader("Your Access Token")
+        st.code(exchange_response['access_token'])
+        st.info("Copy this to your other Robinhood app's secrets.")
+        
+        if st.button("Clear Token from Screen"):
+            st.query_params.clear()
+            st.rerun()
+            
+    except Exception as exchange_error:
+        st.error(f"Exchange Error: {exchange_error}")
