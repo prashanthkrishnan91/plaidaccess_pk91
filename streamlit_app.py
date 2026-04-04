@@ -93,4 +93,21 @@ if link_token:
                 (function() {{
                     const handler = Plaid.create({{
                         token: '{link_token}',
-                        onSuccess: (public_
+                        onSuccess: (public_token, metadata) => {{
+                            // We SET window.top.location but we DO NOT READ it.
+                            // This bypasses the Cross-Origin 'null' origin error.
+                            window.top.location.href = "{app_url}?public_token=" + public_token;
+                        }},
+                        onExit: (err, metadata) => {{
+                            if (err != null) console.error('Plaid Exit:', err);
+                        }}
+                    }});
+                    document.getElementById('link-button').onclick = () => handler.open();
+                }})();
+            </script>
+        </body>
+    </html>
+    """
+    components.html(html_code, height=80)
+else:
+    st.warning("Could not initialize Plaid. Please check your credentials in Streamlit Secrets.")
