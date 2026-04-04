@@ -50,7 +50,7 @@ link_token = get_link_token()
 
 if link_token:
     # 3. Custom Javascript Component for Plaid Link
-    # Note: Double curly braces {{ }} are used so Python f-strings ignore them
+    # Using double curly braces {{ }} to escape them for the Python f-string
     html_code = f"""
     <html>
         <head>
@@ -64,13 +64,7 @@ if link_token:
                 const handler = Plaid.create({{
                     token: '{link_token}',
                     onSuccess: (public_token, metadata) => {{
-                        // Send the token back to Streamlit using postMessage
-                        window.parent.postMessage({{
-                            type: 'streamlit:setComponentValue',
-                            value: public_token
-                        }}, '*');
-
-                        // Fallback: Try to force a URL redirect if postMessage fails
+                        // Direct URL redirect to bypass iframe 'postMessage' restrictions
                         const url = new URL(window.parent.location.href);
                         url.searchParams.set('public_token', public_token);
                         window.parent.location.href = url.href;
@@ -86,11 +80,9 @@ if link_token:
         </body>
     </html>
     """
-    # Render the component and capture the returned value
-    res = components.html(html_code, height=100)
+    components.html(html_code, height=100)
 
-# 4. Check for public_token in URL parameters or Component Return
-# We check st.query_params because the JS fallback writes to the URL
+# 4. Check for public_token in URL parameters
 if "public_token" in st.query_params:
     public_token = st.query_params["public_token"]
     st.success("Public Token received! Exchanging...")
