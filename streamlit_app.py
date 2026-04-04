@@ -55,31 +55,11 @@ if "public_token" in st.query_params:
             st.query_params.clear()
             st.rerun()
 
-# 3. Generate Link Token
-@st.cache_data(show_spinner="Preparing Plaid Link...")
-def get_link_token():
-    try:
-        # CRITICAL: This URL must match your Plaid Dashboard Redirect URIs exactly
-        redirect_uri = "https://plaidaccesspk91-yve3ncusxtuvh7npvjh4wu.streamlit.app/"
-        
-        request = LinkTokenCreateRequest(
-            products=[Products("investments")],
-            client_name="Plaid Access PK91",
-            country_codes=[CountryCode('US')],
-            language='en',
-            user=LinkTokenCreateRequestUser(client_user_id='unique-user-id'),
-            redirect_uri=redirect_uri  # Required for Robinhood/OAuth
-        )
-        response = client.link_token_create(request)
-        return response['link_token']
-    except Exception as e:
-        st.error(f"Failed to create link token: {e}")
-        return None
-
-# 4. Render Link Button
-link_token = get_link_token()
-
+# 3. Custom Javascript Component for Plaid Link
 if link_token:
+    # Hardcode your app URL to avoid the 'SecurityError' when trying to read window.top
+    app_url = "https://plaidaccesspk91-yve3ncusxtuvh7npvjh4wu.streamlit.app/"
+    
     html_code = f"""
     <html>
         <head>
@@ -90,21 +70,23 @@ if link_token:
                 Connect Robinhood
             </button>
             <script>
-                const handler = Plaid.create({{
-                    token: '{link_token}',
-                    onSuccess: (public_token, metadata) => {{
-                        // We use window.top to escape the 'null' origin iframe
-                        const url = new URL(window.top.location.href);
-                        url.searchParams.set('public_token', public_token);
-                        window.top.location.href = url.href;
-                    }},
-                    onExit: (err, metadata) => {{
-                        if (err != null) console.error('Plaid Exit:', err);
-                    }}
-                }});
-                document.getElementById('link-button').onclick = function() {{
-                    handler.open();
-                }};
+                (function() {{
+                    const handler = Plaid.create({{
+                        token: '{link_token}',
+                        onSuccess: (public_token, metadata) => {{
+                            // FIX: We SET window.top.location but we DO NOT READ it.
+                            // This bypasses the Cross-Origin security error.
+                            window.top.location.href = "{app_url}?public_token=" + public_token;
+                        }},
+                        onExit: (err, metadata) => {{
+                            if (err != null) console.error('Plaid Exit Error:', err);
+                        }}
+                    }});
+
+                    document.getElementById('link-button').onclick = function() {{
+                        handler.open();
+                    }};
+                }})();
             </script>
         </body>
     </html>
