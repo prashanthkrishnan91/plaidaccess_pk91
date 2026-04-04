@@ -60,14 +60,14 @@ if link_token:
                 Connect Robinhood
             </button>
             <script>
-                // We use a self-invoking function to avoid global namespace issues
                 (function() {{
                     const handler = Plaid.create({{
                         token: '{link_token}',
                         onSuccess: (public_token, metadata) => {{
-                            // This is the most compatible way to send data back in Streamlit Cloud
-                            const topUrl = window.top.location.href.split('?')[0];
-                            window.top.location.href = topUrl + '?public_token=' + public_token;
+                            // FIX: We bypass postMessage and use a direct TOP-LEVEL redirect
+                            // This is required to solve the 'null' origin error in Streamlit
+                            const currentUrl = window.top.location.href.split('?')[0];
+                            window.top.location.href = currentUrl + '?public_token=' + public_token;
                         }},
                         onExit: (err, metadata) => {{
                             if (err != null) console.error('Plaid Error:', err);
@@ -82,8 +82,8 @@ if link_token:
         </body>
     </html>
     """
-    # Using a slightly larger height to ensure the button shadow isn't clipped
-    components.html(html_code, height=120)
+    # Render with scrolling=False to prevent layout shifts
+    components.html(html_code, height=120, scrolling=False)
 # 4. Check for public_token in URL parameters
 if "public_token" in st.query_params:
     public_token = st.query_params["public_token"]
