@@ -63,16 +63,16 @@ if link_token:
                 const handler = Plaid.create({{
                     token: '{link_token}',
                     onSuccess: (public_token, metadata) => {
-                        // Send the token back to Streamlit using a message
-                        window.parent.postMessage({
-                            type: 'streamlit:setComponentValue',
-                            value: public_token
-                        }, '*');
-                        
-                        // Fallback: Try the URL method if postMessage is restricted
-                        const url = new URL(window.parent.location.href);
-                        url.searchParams.set('public_token', public_token);
-                        window.parent.location.href = url.href;
+                    // Send the token back to Streamlit using a message
+                    window.parent.postMessage({
+                        type: 'streamlit:setComponentValue',
+                        value: public_token
+                    }, '*');
+                    
+                    // Fallback: Try the URL method if postMessage is restricted
+                    const url = new URL(window.parent.location.href);
+                    url.searchParams.set('public_token', public_token);
+                    window.parent.location.href = url.href;
                     },
                     onExit: (err, metadata) => {{
                         if (err != null) console.error(err);
