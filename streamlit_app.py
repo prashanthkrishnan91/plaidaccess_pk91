@@ -78,7 +78,7 @@ if link_token:
         </body>
     </html>
     """
-    components.html(html_code, height=100)
+    components.html(html_code, height=100, scrolling=False)
 
 # 4. Check for public_token in URL and exchange it
 if "public_token" in st.query_params:
