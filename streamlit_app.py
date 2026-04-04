@@ -64,10 +64,10 @@ if link_token:
                 const handler = Plaid.create({{
                     token: '{link_token}',
                     onSuccess: (public_token, metadata) => {{
-                        // Direct URL redirect to bypass iframe 'postMessage' restrictions
-                        const url = new URL(window.parent.location.href);
+                        // Redirect the MAIN window, not just the iframe
+                        const url = new URL(window.top.location.href);
                         url.searchParams.set('public_token', public_token);
-                        window.parent.location.href = url.href;
+                        window.top.location.href = url.href;
                     }},
                     onExit: (err, metadata) => {{
                         if (err != null) console.error(err);
