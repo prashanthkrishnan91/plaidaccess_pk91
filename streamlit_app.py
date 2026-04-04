@@ -1,5 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
+import base64
 from plaid.api import plaid_api
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
@@ -9,121 +10,144 @@ from plaid.model.country_code import CountryCode
 from plaid.configuration import Configuration
 from plaid.api_client import ApiClient
 
-# 1. Setup Page
+# 1. Page Config & State Initialization
 st.set_page_config(page_title="Plaid Token Generator", page_icon="🏦")
 st.title("🏦 Plaid Access Token Generator")
 
-# 2. Client Initialization
-def get_plaid_client():
-    try:
-        env = st.secrets.get("PLAID_ENV", "sandbox")
-        host = "https://production.plaid.com" if env == "production" else "https://sandbox.plaid.com"
-        configuration = Configuration(
-            host=host,
-            api_key={
-                'clientId': st.secrets["PLAID_CLIENT_ID"],
-                'secret': st.secrets["PLAID_SECRET"],
-            }
-        )
-        return plaid_api.PlaidApi(ApiClient(configuration))
-    except Exception as e:
-        st.error(f"Configuration Error: {e}")
-        return None
+# CRITICAL for OAuth: The link_token must survive Streamlit reruns
+if 'link_token' not in st.session_state:
+    st.session_state.link_token = None
 
-client = get_plaid_client()
+app_url = "https://plaidaccesspk91-yve3ncusxtuvh7npvjh4wu.streamlit.app/"
 
-# 3. Success Flow: Exchange Public Token
-# Catch the token from the URL after the Plaid redirect
-if "public_token" in st.query_params:
-    public_token = st.query_params["public_token"]
-    st.info("🔄 Received Public Token. Exchanging for Access Token...")
-    try:
-        exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
-        exchange_response = client.item_public_token_exchange(exchange_request)
-        
-        st.success("✅ Access Token Generated Successfully!")
-        st.subheader("Your Access Token:")
-        st.code(exchange_response['access_token'])
-        
-        if st.button("Start New Connection"):
-            st.query_params.clear()
-            st.rerun()
-        st.stop()
-    except Exception as e:
-        st.error(f"Exchange failed: {e}")
-        if st.button("Reset App"):
-            st.query_params.clear()
-            st.rerun()
+# 2. Setup Plaid Client
+try:
+    env = st.secrets.get("PLAID_ENV", "sandbox")
+    host = "https://production.plaid.com" if env == "production" else "https://sandbox.plaid.com"
+    
+    configuration = Configuration(
+        host=host,
+        api_key={
+            'clientId': st.secrets["PLAID_CLIENT_ID"],
+            'secret': st.secrets["PLAID_SECRET"],
+        }
+    )
+    client = plaid_api.PlaidApi(ApiClient(configuration))
+except Exception as e:
+    st.error(f"Configuration Error: {e}")
+    st.stop()
 
-# 4. Generate Link Token
-@st.cache_data(show_spinner="Preparing Plaid...")
-def get_link_token():
-    if not client: return None
+# 3. Generate Link Token
+def generate_link_token():
     try:
-        # CRITICAL: This URL must match your Plaid Dashboard exactly
-        redirect_uri = "https://plaidaccesspk91-yve3ncusxtuvh7npvjh4wu.streamlit.app/"
-        
         request = LinkTokenCreateRequest(
             products=[Products("investments")],
-            client_name="Plaid Access Generator",
+            client_name="Plaid Access PK91",
             country_codes=[CountryCode('US')],
             language='en',
             user=LinkTokenCreateRequestUser(client_user_id='unique-user-id'),
-            redirect_uri=redirect_uri
+            redirect_uri=app_url
         )
         response = client.link_token_create(request)
         return response['link_token']
     except Exception as e:
-        st.error(f"Plaid Link Token Error: {e}")
+        st.error(f"Plaid API Error: {e}")
         return None
 
-# 5. Main UI
-if client:
-    link_token = get_link_token()
-    if link_token:
-        # Use a hardcoded URL for the redirect to bypass 'null' origin security errors
-        app_url = "https://plaidaccesspk91-yve3ncusxtuvh7npvjh4wu.streamlit.app/"
+# 4. Master Routing Flow (Standard, OAuth Return, or Exchange)
+if "public_token" in st.query_params:
+    # STAGE 3: Final Token Exchange
+    public_token = st.query_params["public_token"]
+    st.info("🔄 Exchanging for Access Token...")
+    try:
+        exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
+        exchange_response = client.item_public_token_exchange(exchange_request)
         
-        html_code = f"""
+        st.success("✅ Success! Access Token Generated.")
+        st.code(exchange_response['access_token'])
+        
+        if st.button("Start New Connection"):
+            st.session_state.link_token = None
+            st.query_params.clear()
+            st.rerun()
+    except Exception as err:
+        st.error(f"Exchange failed: {err}")
+
+else:
+    # STAGE 1 & 2: Launching Plaid Link
+    if not st.session_state.link_token:
+        st.session_state.link_token = generate_link_token()
+    
+    link_token = st.session_state.link_token
+    
+    if link_token:
+        # Check if Robinhood just redirected back to us
+        received_uri = ""
+        if "oauth_state_id" in st.query_params:
+            st.info("🔄 Robinhood authorization received. Finalize connection below.")
+            query_string = "&".join([f"{k}={v}" for k, v in st.query_params.items()])
+            received_uri = f"{app_url}?{query_string}"
+            btn_text = "Finish Robinhood Connection"
+        else:
+            btn_text = "Connect to Robinhood"
+
+        # 5. The Magic Popup Breakout
+        # We run Plaid in a window.open() popup to evade Streamlit's iframe 'null' origin policy.
+        popup_html = f"""
+        <!DOCTYPE html>
         <html>
-            <head>
-                <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
-                <style>
-                    #link-button {{
-                        background-color: #00ADEE;
-                        color: white;
-                        border: none;
-                        padding: 14px 24px;
-                        border-radius: 8px;
-                        cursor: pointer;
-                        font-size: 16px;
-                        font-weight: bold;
-                        width: 100%;
-                        transition: 0.2s;
-                    }}
-                    #link-button:hover {{ background-color: #008fca; }}
-                </style>
-            </head>
-            <body style="margin: 0;">
-                <button id="link-button">Connect to Robinhood</button>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+        </head>
+        <body style="font-family: sans-serif; display:flex; justify-content:center; align-items:center; height: 100vh; background: #f4f4f4;">
+            <div style="text-align: center; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                <h3 id="msg">Initializing Plaid...</h3>
+            </div>
+            <script>
+                function start() {{
+                    if (!window.Plaid) {{ setTimeout(start, 100); return; }}
+                    const handler = Plaid.create({{
+                        token: '{link_token}',
+                        {f"receivedRedirectUri: '{received_uri}'," if received_uri else ""}
+                        onSuccess: (public_token) => {{
+                            document.getElementById('msg').innerText = 'Success! Redirecting...';
+                            window.location.href = "{app_url}?public_token=" + public_token;
+                        }},
+                        onExit: (err) => {{ 
+                            if (err) document.getElementById('msg').innerHTML = "<span style='color:red;'>Error: " + err.error_message + "</span>"; 
+                            else window.close();
+                        }}
+                    }});
+                    handler.open();
+                }}
+                start();
+            </script>
+        </body>
+        </html>
+        """
+        
+        # Base64 encode the popup HTML to prevent Javascript syntax errors from quotes and formatting
+        b64_html = base64.b64encode(popup_html.encode('utf-8')).decode('utf-8')
+        
+        btn_html = f"""
+        <html>
+            <body style="margin: 0; padding: 10px;">
+                <button id="btn" style="background-color: #00ADEE; color: white; border: none; padding: 16px; border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    {btn_text}
+                </button>
                 <script>
-                    (function() {{
-                        const handler = Plaid.create({{
-                            token: '{link_token}',
-                            onSuccess: (public_token, metadata) => {{
-                                // Direct window redirect to bypass iframe postMessage restrictions
-                                window.top.location.href = "{app_url}?public_token=" + public_token;
-                            }},
-                            onExit: (err, metadata) => {{
-                                if (err != null) console.error('Plaid Exit:', err);
-                            }}
-                        }});
-                        document.getElementById('link-button').onclick = () => handler.open();
-                    }})();
+                    document.getElementById('btn').onclick = function() {{
+                        const w = window.open("", "_blank", "width=500,height=750");
+                        const decodedHtml = decodeURIComponent(escape(window.atob('{b64_html}')));
+                        w.document.open();
+                        w.document.write(decodedHtml);
+                        w.document.close();
+                    }};
                 </script>
             </body>
         </html>
         """
-        components.html(html_code, height=80)
+        components.html(btn_html, height=100)
     else:
-        st.warning("Could not generate Plaid Link token. Check app logs.")
+        st.warning("Failed to generate Link Token. Check Plaid Dashboard logs.")
