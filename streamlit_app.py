@@ -85,7 +85,12 @@ if link_token:
         </body>
     </html>
     """
-    components.html(html_code, height=100, scrolling=False)
+   # This allows the iframe to "break out" and open the Plaid popup
+    public_token = components.html(html_code, height=100)
+    
+    # If the component returns a value directly (modern Streamlit components)
+    if public_token and isinstance(public_token, str):
+        st.query_params["public_token"] = public_token
 
 # 4. Check for public_token in URL and exchange it
 if "public_token" in st.query_params:
