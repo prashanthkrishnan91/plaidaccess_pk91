@@ -47,48 +47,39 @@ def get_link_token():
 try:
     link_token = get_link_token()
 
-    # 3. Custom Javascript Component for Plaid Link
+   # 3. Custom Javascript Component for Plaid Link
+if link_token:
+    # We use a taller height and explicit sandbox permissions
     html_code = f"""
-    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
-    <button id="link-button" style="background-color: #00ADEE; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%;">
-        Connect Robinhood
-    </button>
-    <script>
-    const handler = Plaid.create({{
-      token: '{link_token}',
-      onSuccess: (public_token, metadata) => {{
-        const url = new URL(window.location.href);
-        url.searchParams.set('public_token', public_token);
-        window.parent.location.href = url.href;
-      }},
-    }});
-    document.getElementById('link-button').onclick = () => handler.open();
-    </script>
+    <html>
+        <head>
+            <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+        </head>
+        <body style="margin: 0;">
+            <button id="link-button" style="background-color: #00ADEE; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; font-family: sans-serif;">
+                Connect Robinhood
+            </button>
+            <script>
+                const handler = Plaid.create({{
+                    token: '{link_token}',
+                    onSuccess: (public_token, metadata) => {{
+                        // Send token back to the main Streamlit page
+                        const url = new URL(window.parent.location.href);
+                        url.searchParams.set('public_token', public_token);
+                        window.parent.location.href = url.href;
+                    }},
+                    onExit: (err, metadata) => {{
+                        if (err != null) console.error(err);
+                    }}
+                }});
+                document.getElementById('link-button').onclick = function() {{
+                    handler.open();
+                }};
+            </script>
+        </body>
+    </html>
     """
-    
-    components.html(html_code, height=70, scrolling=False)
-
-    # 4. Check for public_token in URL
-    if "public_token" in st.query_params:
-        public_token = st.query_params["public_token"]
-        st.success("Public Token received! Exchanging...")
-        
-        try:
-            exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
-            exchange_response = client.item_public_token_exchange(exchange_request)
-            
-            st.subheader("Your Access Token")
-            st.code(exchange_response['access_token'])
-            st.info("Copy this to your other Robinhood app's secrets.")
-            
-            if st.button("Clear Token from Screen"):
-                st.query_params.clear()
-                st.rerun()
-                
-        except Exception as exchange_error:
-            st.error(f"Exchange Error: {exchange_error}")
-
-except Exception as setup_error:
-    st.error(f"Setup Error: {setup_error}")
-    if "INVALID_PRODUCT" in str(setup_error):
-        st.warning("Plaid is still reviewing your 'Investments' product request. You cannot use Robinhood in Production until they approve it.")
+    # This height ensures the button isn't cut off and the iframe has room to breathe
+    components.html(html_code, height=100)
+else:
+    st.error("No Link Token found. Check your Plaid credentials.")
