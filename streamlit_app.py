@@ -50,6 +50,7 @@ link_token = get_link_token()
 
 if link_token:
     # 3. Custom Javascript Component for Plaid Link
+    # Note: Double curly braces {{ }} are used so Python f-strings ignore them
     html_code = f"""
     <html>
         <head>
@@ -62,52 +63,7 @@ if link_token:
             <script>
                 const handler = Plaid.create({{
                     token: '{link_token}',
-                    onSuccess: (public_token, metadata) => {
-                    // Send the token back to Streamlit using a message
-                    window.parent.postMessage({
-                        type: 'streamlit:setComponentValue',
-                        value: public_token
-                    }, '*');
-                    
-                    // Fallback: Try the URL method if postMessage is restricted
-                    const url = new URL(window.parent.location.href);
-                    url.searchParams.set('public_token', public_token);
-                    window.parent.location.href = url.href;
-                    },
-                    onExit: (err, metadata) => {{
-                        if (err != null) console.error(err);
-                    }}
-                }});
-                document.getElementById('link-button').onclick = function() {{
-                    handler.open();
-                }};
-            </script>
-        </body>
-    </html>
-    """
-   # This allows the iframe to "break out" and open the Plaid popup
-    public_token = components.html(html_code, height=100)
-    
-    # If the component returns a value directly (modern Streamlit components)
-    if public_token and isinstance(public_token, str):
-        st.query_params["public_token"] = public_token
-
-# 4. Check for public_token in URL and exchange it
-if "public_token" in st.query_params:
-    public_token = st.query_params["public_token"]
-    st.success("Public Token received! Exchanging...")
-    
-    try:
-        exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
-        exchange_response = client.item_public_token_exchange(exchange_request)
-        
-        st.subheader("Your Access Token")
-        st.code(exchange_response['access_token'])
-        st.info("Copy this to your other Robinhood app's secrets.")
-        
-        if st.button("Clear Token from Screen"):
-            st.query_params.clear()
-            st.rerun()
-            
-    except Exception as exchange_error:
-        st.error(f"Exchange Error: {exchange_error}")
+                    onSuccess: (public_token, metadata) => {{
+                        // Send the token back to Streamlit using postMessage
+                        window.parent.postMessage({{
+                            type: 'streamlit:set
