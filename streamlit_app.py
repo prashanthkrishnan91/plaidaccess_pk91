@@ -50,38 +50,40 @@ link_token = get_link_token()
 
 if link_token:
     # 3. Custom Javascript Component for Plaid Link
-    # Using double curly braces {{ }} to escape them for the Python f-string
     html_code = f"""
     <html>
         <head>
             <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
         </head>
-        <body style="margin: 0;">
-            <button id="link-button" style="background-color: #00ADEE; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; font-family: sans-serif;">
+        <body style="margin: 0; background-color: transparent;">
+            <button id="link-button" style="background-color: #00ADEE; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; font-family: sans-serif; box-shadow: 0px 2px 4px rgba(0,0,0,0.1);">
                 Connect Robinhood
             </button>
             <script>
-                const handler = Plaid.create({{
-                    token: '{link_token}',
-                    onSuccess: (public_token, metadata) => {{
-                        // Redirect the MAIN window, not just the iframe
-                        const url = new URL(window.top.location.href);
-                        url.searchParams.set('public_token', public_token);
-                        window.top.location.href = url.href;
-                    }},
-                    onExit: (err, metadata) => {{
-                        if (err != null) console.error(err);
-                    }}
-                }});
-                document.getElementById('link-button').onclick = function() {{
-                    handler.open();
-                }};
+                // We use a self-invoking function to avoid global namespace issues
+                (function() {{
+                    const handler = Plaid.create({{
+                        token: '{link_token}',
+                        onSuccess: (public_token, metadata) => {{
+                            // This is the most compatible way to send data back in Streamlit Cloud
+                            const topUrl = window.top.location.href.split('?')[0];
+                            window.top.location.href = topUrl + '?public_token=' + public_token;
+                        }},
+                        onExit: (err, metadata) => {{
+                            if (err != null) console.error('Plaid Error:', err);
+                        }}
+                    }});
+
+                    document.getElementById('link-button').onclick = function() {{
+                        handler.open();
+                    }};
+                }})();
             </script>
         </body>
     </html>
     """
-    components.html(html_code, height=100)
-
+    # Using a slightly larger height to ensure the button shadow isn't clipped
+    components.html(html_code, height=120)
 # 4. Check for public_token in URL parameters
 if "public_token" in st.query_params:
     public_token = st.query_params["public_token"]
