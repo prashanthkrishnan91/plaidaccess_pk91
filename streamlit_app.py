@@ -14,7 +14,6 @@ from plaid.api_client import ApiClient
 st.set_page_config(page_title="Plaid Token Generator", page_icon="🏦")
 st.title("🏦 Plaid Access Token Generator")
 
-# CRITICAL for OAuth: The link_token must survive Streamlit reruns
 if 'link_token' not in st.session_state:
     st.session_state.link_token = None
 
@@ -24,7 +23,6 @@ app_url = "https://plaidaccesspk91-yve3ncusxtuvh7npvjh4wu.streamlit.app/"
 try:
     env = st.secrets.get("PLAID_ENV", "sandbox")
     host = "https://production.plaid.com" if env == "production" else "https://sandbox.plaid.com"
-    
     configuration = Configuration(
         host=host,
         api_key={
@@ -54,34 +52,28 @@ def generate_link_token():
         st.error(f"Plaid API Error: {e}")
         return None
 
-# 4. Master Routing Flow (Standard, OAuth Return, or Exchange)
+# 4. Routing Flow
 if "public_token" in st.query_params:
-    # STAGE 3: Final Token Exchange
     public_token = st.query_params["public_token"]
     st.info("🔄 Exchanging for Access Token...")
     try:
         exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
         exchange_response = client.item_public_token_exchange(exchange_request)
-        
         st.success("✅ Success! Access Token Generated.")
         st.code(exchange_response['access_token'])
-        
         if st.button("Start New Connection"):
             st.session_state.link_token = None
             st.query_params.clear()
             st.rerun()
     except Exception as err:
         st.error(f"Exchange failed: {err}")
-
 else:
-    # STAGE 1 & 2: Launching Plaid Link
     if not st.session_state.link_token:
         st.session_state.link_token = generate_link_token()
     
     link_token = st.session_state.link_token
     
     if link_token:
-        # Check if Robinhood just redirected back to us
         received_uri = ""
         if "oauth_state_id" in st.query_params:
             st.info("🔄 Robinhood authorization received. Finalize connection below.")
@@ -92,16 +84,14 @@ else:
             btn_text = "Connect to Robinhood"
 
         # 5. The Magic Popup Breakout
-        # We run Plaid in a window.open() popup to evade Streamlit's iframe 'null' origin policy.
         popup_html = f"""
         <!DOCTYPE html>
         <html>
         <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
         </head>
-        <body style="font-family: sans-serif; display:flex; justify-content:center; align-items:center; height: 100vh; background: #f4f4f4;">
-            <div style="text-align: center; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+        <body style="font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; background:#f4f4f4;">
+            <div style="text-align:center; background:white; padding:30px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
                 <h3 id="msg">Initializing Plaid...</h3>
             </div>
             <script>
@@ -111,7 +101,6 @@ else:
                         token: '{link_token}',
                         {f"receivedRedirectUri: '{received_uri}'," if received_uri else ""}
                         onSuccess: (public_token) => {{
-                            document.getElementById('msg').innerText = 'Success! Redirecting...';
                             window.location.href = "{app_url}?public_token=" + public_token;
                         }},
                         onExit: (err) => {{ 
@@ -127,21 +116,20 @@ else:
         </html>
         """
         
-        # Base64 encode the popup HTML to prevent Javascript syntax errors from quotes and formatting
         b64_html = base64.b64encode(popup_html.encode('utf-8')).decode('utf-8')
         
         btn_html = f"""
         <html>
-            <body style="margin: 0; padding: 10px;">
-                <button id="btn" style="background-color: #00ADEE; color: white; border: none; padding: 16px; border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <body style="margin:0; padding:10px;">
+                <button id="btn" style="background-color:#00ADEE; color:white; border:none; padding:16px; border-radius:6px; cursor:pointer; font-size:16px; width:100%; font-weight:bold;">
                     {btn_text}
                 </button>
                 <script>
                     document.getElementById('btn').onclick = function() {{
-                        const w = window.open("", "_blank", "width=500,height=750");
-                        const decodedHtml = decodeURIComponent(escape(window.atob('{b64_html}')));
+                        const w = window.open("", "_blank", "width=500,height=700");
+                        const decoded = decodeURIComponent(escape(window.atob('{b64_html}')));
                         w.document.open();
-                        w.document.write(decodedHtml);
+                        w.document.write(decoded);
                         w.document.close();
                     }};
                 </script>
@@ -149,5 +137,3 @@ else:
         </html>
         """
         components.html(btn_html, height=100)
-    else:
-        st.warning("Failed to generate Link Token. Check Plaid Dashboard logs.")
