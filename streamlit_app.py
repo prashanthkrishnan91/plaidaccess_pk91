@@ -13,10 +13,8 @@ st.set_page_config(page_title="Plaid Token Generator", page_icon="🏦")
 st.title("🏦 Plaid Access Token Generator")
 
 # 1. Setup Plaid Client Configuration
-if st.secrets["PLAID_ENV"] == "production":
+if st.secrets.get("PLAID_ENV") == "production":
     host = "https://production.plaid.com"
-elif st.secrets["PLAID_ENV"] == "development":
-    host = "https://development.plaid.com"
 else:
     host = "https://sandbox.plaid.com"
 
@@ -33,23 +31,25 @@ client = plaid_api.PlaidApi(api_client)
 # 2. Generate Link Token
 @st.cache_data(show_spinner="Generating Link Token...")
 def get_link_token():
-    request = LinkTokenCreateRequest(
-        products=[Products("investments")],
-        client_name="My Financial App",
-        country_codes=[CountryCode('US')],
-        language='en',
-        user=LinkTokenCreateRequestUser(client_user_id='unique-user-id')
-    )
-    response = client.link_token_create(request)
-    return response['link_token']
+    try:
+        request = LinkTokenCreateRequest(
+            products=[Products("investments")],
+            client_name="My Financial App",
+            country_codes=[CountryCode('US')],
+            language='en',
+            user=LinkTokenCreateRequestUser(client_user_id='unique-user-id')
+        )
+        response = client.link_token_create(request)
+        return response['link_token']
+    except Exception as e:
+        st.error(f"Error generating Link Token: {e}")
+        return None
 
 # --- MAIN LOGIC ---
-try:
-    link_token = get_link_token()
+link_token = get_link_token()
 
-   # 3. Custom Javascript Component for Plaid Link
 if link_token:
-    # We use a taller height and explicit sandbox permissions
+    # 3. Custom Javascript Component for Plaid Link
     html_code = f"""
     <html>
         <head>
@@ -63,7 +63,6 @@ if link_token:
                 const handler = Plaid.create({{
                     token: '{link_token}',
                     onSuccess: (public_token, metadata) => {{
-                        // Send token back to the main Streamlit page
                         const url = new URL(window.parent.location.href);
                         url.searchParams.set('public_token', public_token);
                         window.parent.location.href = url.href;
@@ -79,7 +78,24 @@ if link_token:
         </body>
     </html>
     """
-    # This height ensures the button isn't cut off and the iframe has room to breathe
     components.html(html_code, height=100)
-else:
-    st.error("No Link Token found. Check your Plaid credentials.")
+
+# 4. Check for public_token in URL and exchange it
+if "public_token" in st.query_params:
+    public_token = st.query_params["public_token"]
+    st.success("Public Token received! Exchanging...")
+    
+    try:
+        exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
+        exchange_response = client.item_public_token_exchange(exchange_request)
+        
+        st.subheader("Your Access Token")
+        st.code(exchange_response['access_token'])
+        st.info("Copy this to your other Robinhood app's secrets.")
+        
+        if st.button("Clear Token from Screen"):
+            st.query_params.clear()
+            st.rerun()
+            
+    except Exception as exchange_error:
+        st.error(f"Exchange Error: {exchange_error}")
