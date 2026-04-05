@@ -79,7 +79,7 @@ if st.session_state.hosted_link_url and not st.session_state.access_token:
                 "secret": SECRET,
                 "link_token": st.session_state.link_token
             }
-            response = requests.post(f"{BASE_URL}/link/token/get", json=get_payload).json()
+            response = requests.post(f"{BASE_URL}/link/token/get", json=get_payload)
             get_response = response.json()
             
             sessions = get_response.get("link_sessions", [])
