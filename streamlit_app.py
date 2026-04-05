@@ -79,14 +79,15 @@ if st.session_state.hosted_link_url and not st.session_state.access_token:
                 "secret": SECRET,
                 "link_token": st.session_state.link_token
             }
-            get_response = requests.post(f"{BASE_URL}/link/token/get", json=get_payload).json()
+            response = requests.post(f"{BASE_URL}/link/token/get", json=get_payload).json()
+            get_response = response.json()
             
-            public_token = None
             sessions = get_response.get("link_sessions", [])
+            public_token = None
             
             # Iterate through the sessions to find the successful login
             for session in sessions:
-                if session.get("on_success"):
+                if "on_success" in session and session["on_success"]:
                     public_token = session["on_success"].get("public_token")
                     break
             
@@ -99,7 +100,15 @@ if st.session_state.hosted_link_url and not st.session_state.access_token:
                     "secret": SECRET,
                     "public_token": public_token
                 }
-                exchange_response = requests.post(f"{BASE_URL}/item/public_token/exchange", json=exchange_payload).json()
+                res = requests.post(f"{BASE_URL}/item/public_token/exchange", json=exchange_payload).json()
+                st.session_state.access_token = res.get("access_token")
+                st.rerun()
+            else:
+                # Debugging help: Show what Plaid actually sees
+                st.error("Session not found yet.")
+                with st.expander("Technical Details (Why it failed)"):
+                    st.write("Plaid Session Count:", len(sessions))
+                    st.json(get_response)
                 
                 if "access_token" in exchange_response:
                     st.session_state.access_token = exchange_response["access_token"]
