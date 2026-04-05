@@ -38,12 +38,11 @@ if not st.session_state.link_token and not st.session_state.access_token:
                 "country_codes": ["US"],
                 "user": {"client_user_id": "streamlit-user"},
                 "products": ["investments"],
-                "hosted_link": {} # This crucial flag tells Plaid to host the UI themselves
+                "hosted_link": {} 
             }
             try:
                 response = requests.post(f"{BASE_URL}/link/token/create", json=payload)
                 data = response.json()
-                
                 if "error_message" in data:
                     st.error(f"Plaid Error: {data['error_message']}")
                 else:
@@ -60,20 +59,17 @@ if st.session_state.hosted_link_url and not st.session_state.access_token:
     st.success("✅ Secure Link Generated!")
     st.markdown("### Step 2: Connect your account")
     
-    # Render an HTML link styled as a button to force a new, safe browser tab
     button_html = f"""
     <a href="{st.session_state.hosted_link_url}" target="_blank" style="display: block; width: 100%; padding: 15px; background-color: #00ADEE; color: white; text-decoration: none; border-radius: 6px; font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 20px;">
         Connect to Robinhood (Opens in New Tab)
     </a>
     """
     st.markdown(button_html, unsafe_allow_html=True)
-    
-    st.warning("**Instructions:** Click the button above. Log in with Sandbox credentials (`user_good` / `pass_good`). Once you reach the 'Success' screen in that tab, close it and return here.")
+    st.warning("Click the button above. Once you see the 'Success' screen in the other tab, close it and return here.")
     
     st.markdown("### Step 3: Finalize Connection")
     if st.button("I have completed the login - Fetch Access Token"):
         with st.spinner("Verifying session status with Plaid..."):
-            # Fetch the session data from Plaid's backend
             get_payload = {
                 "client_id": CLIENT_ID,
                 "secret": SECRET,
@@ -85,36 +81,31 @@ if st.session_state.hosted_link_url and not st.session_state.access_token:
             sessions = get_response.get("link_sessions", [])
             public_token = None
             
-            # Iterate through the sessions to find the successful login
             for session in sessions:
                 if "on_success" in session and session["on_success"]:
                     public_token = session["on_success"].get("public_token")
                     break
             
             if public_token:
-                st.success("✅ Completed session verified! Exchanging token...")
-                
-                # Exchange the public token for the permanent access token
+                st.success("✅ Session verified! Exchanging token...")
                 exchange_payload = {
                     "client_id": CLIENT_ID,
                     "secret": SECRET,
                     "public_token": public_token
                 }
-                res = requests.post(f"{BASE_URL}/item/public_token/exchange", json=exchange_payload).json()
-                st.session_state.access_token = res.get("access_token")
-                st.rerun()
-            else:
-                # Debugging help: Show what Plaid actually sees
-                st.error("Session not found yet.")
-                with st.expander("Technical Details (Why it failed)"):
-                    st.write("Plaid Session Count:", len(sessions))
-                    st.json(get_response)
+                # FIXED: Consistently use exchange_res and exchange_data
+                exchange_res = requests.post(f"{BASE_URL}/item/public_token/exchange", json=exchange_payload)
+                exchange_data = exchange_res.json()
                 
-                if "access_token" in exchange_response:
-                    st.session_state.access_token = exchange_response["access_token"]
+                if "access_token" in exchange_data:
+                    st.session_state.access_token = exchange_data["access_token"]
                     st.rerun()
                 else:
-                    st.error(f"Exchange Error: {exchange_response.get('error_message')}")
+                    st.error(f"Exchange Error: {exchange_data.get('error_message')}")
+            else:
+                st.error("Session not found yet. Did you finish the login in the other tab?")
+                with st.expander("Technical Details"):
+                    st.json(get_response)
 
 # ==========================================
 # STEP 3: Success State
