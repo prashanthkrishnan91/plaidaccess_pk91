@@ -81,10 +81,23 @@ if st.session_state.hosted_link_url and not st.session_state.access_token:
             sessions = get_response.get("link_sessions", [])
             public_token = None
             
+            # 2. Find the successful session and extract the token
             for session in sessions:
-                if "on_success" in session and session["on_success"]:
-                    public_token = session["on_success"].get("public_token")
-                    break
+                # First, check the 'results' object which is the most reliable source
+                results = session.get("results", {})
+                item_adds = results.get("item_add_results", [])
+                
+                if item_adds and len(item_adds) > 0:
+                    public_token = item_adds[0].get("public_token")
+                    if public_token:
+                        break
+                
+                # Fallback: Check the 'on_success' metadata if results are empty
+                on_success = session.get("on_success")
+                if isinstance(on_success, dict):
+                    public_token = on_success.get("public_token")
+                    if public_token:
+                        break
             
             if public_token:
                 st.success("✅ Session verified! Exchanging token...")
