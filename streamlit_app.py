@@ -115,8 +115,6 @@ if st.session_state.hosted_link_url and not st.session_state.access_token:
                     st.rerun()
                 else:
                     st.error(f"Exchange Error: {exchange_response.get('error_message')}")
-            else:
-                st.error("We couldn't detect a completed session. Ensure you finished the Plaid flow in the other tab before clicking this button.")
 
 # ==========================================
 # STEP 3: Success State
